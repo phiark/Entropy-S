@@ -8,6 +8,14 @@ Current status:
 - `EDL from CE finetune` is usable for diagnostics.
 - `pure EDL from scratch` is currently not a reliable mainline recipe in this repo and should be treated as a debugging path, not the default experiment.
 
+## Documentation map
+
+- Project linkage across the paper, audit report, code, and current results: [REPORT_PROJECT_LINKAGE.md](/Users/zero_lab/Documents/resolution_edl_experiment/REPORT_PROJECT_LINKAGE.md)
+- Next experiment design based on the structural audit: [EXPERIMENT_V2_PLAN.md](/Users/zero_lab/Documents/resolution_edl_experiment/EXPERIMENT_V2_PLAN.md)
+- Repair log for implementation-level fixes: [REPAIR_REPORT.md](/Users/zero_lab/Documents/resolution_edl_experiment/REPAIR_REPORT.md)
+- Original manuscript draft: [report/V3.tex](/Users/zero_lab/Documents/resolution_edl_experiment/report/V3.tex)
+- Structural audit report: [report/entropy_s_structural_evaluation_report.tex](/Users/zero_lab/Documents/resolution_edl_experiment/report/entropy_s_structural_evaluation_report.tex)
+
 ## Files
 
 - `train_edl_cifar10.py` trains an evidential ResNet-18 on CIFAR-10.
@@ -35,11 +43,19 @@ python train_edl_cifar10.py \
   --no-train-augment \
   --epochs 30
 
-# 3. Run diagnostics on the EDL-finetuned checkpoint.
+# 3. Define a fixed cohort with a reference checkpoint.
+python evaluate_resolution_diagnostics.py \
+  --data-dir ./data \
+  --checkpoint ./runs/cifar10_ce/best.pt \
+  --out-dir ./runs/cifar10_eval_ce_reference \
+  --betas 0.1 0.5 0.75
+
+# 4. Reuse the same cohort for later checkpoint comparisons.
 python evaluate_resolution_diagnostics.py \
   --data-dir ./data \
   --checkpoint ./runs/cifar10_edl_from_ce/best.pt \
   --out-dir ./runs/cifar10_eval_from_ce \
+  --cohort-manifest ./runs/cifar10_eval_ce_reference/cohort_manifest.json \
   --betas 0.1 0.5 0.75
 ```
 
@@ -67,10 +83,12 @@ For EDL debugging, `--no-train-augment` is useful. In this codebase, EDL is much
 
 Outputs include:
 
-- `matched_scatter.png` for the main figure
-- `matched_auroc.csv` for the entropy-matched table
-- `risk_coverage_summary.csv` and `risk_coverage_eta_*.png`
-- `beta_scan_ablation.csv`
+- `cohort_manifest.json` for fixed benchmark reuse
+- `matched_discrimination/matched_scatter*.png`
+- `matched_discrimination/matched_auroc.csv`
+- `selective_rejection/risk_coverage_summary.csv`
+- `selective_rejection/risk_coverage_eta_*.png`
+- `selective_rejection/beta_scan_ablation.csv`
 
 ## Synthetic fallback
 

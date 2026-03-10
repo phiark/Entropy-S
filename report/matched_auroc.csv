@@ -1,0 +1,9 @@
+score,auroc_best_orientation,orientation
+predictive_entropy,0.5231386332537362,-1
+vacuity,0.5223015212900111,-1
+dissonance,0.504783880228596,1
+resolution_ratio_r,0.5223015212900111,1
+projected_entropy_beta_0p1,0.5146923881838427,1
+projected_entropy_beta_0p5,0.5228917925464839,-1
+projected_entropy_beta_0p75,0.5238872045289904,-1
+pair_r_hcont_logistic_probe,0.6027984223659145,1

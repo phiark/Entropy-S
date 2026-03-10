@@ -1,0 +1,997 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{booktabs,multirow,array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\usepackage{caption}
+
+\hypersetup{pdftitle={Resolution-Aware Uncertainty Diagnostics for Explicit-Unknown States}}
+
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}[definition]{Theorem}
+\newtheorem{proposition}[definition]{Proposition}
+\newtheorem{lemma}[definition]{Lemma}
+\newtheorem{remark}[definition]{Remark}
+\newtheorem{example}[definition]{Example}
+\newtheorem{corollary}[definition]{Corollary}
+
+\newcommand{\T}{\mathrm{T}}
+\newcommand{\F}{\mathrm{F}}
+\newcommand{\U}{\mathrm{U}}
+\newcommand{\BetP}{\mathrm{BetP}}
+\newcommand{\KL}{\mathrm{D}}
+\newcommand{\MI}{\mathrm{I}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\1}{\mathbf{1}}
+\newcommand{\hbin}{h}
+\newcommand{\placeholder}[1]{\textit{#1}}
+
+\title{Resolution-Aware Uncertainty Diagnostics for Explicit-Unknown States\\
+\large Ternary Coordinates, Projection Loss, and Information Measures}
+\author{Rui Li}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+In many epistemic systems, uncertainty does not arise solely from dispersion across resolved alternatives. It also arises because some items have not yet entered the resolved regime at all. This distinction is operational in Dempster--Shafer style evidence models, subjective logic, evidential deep learning, open-set recognition, and abstention-aware prediction, yet it is often collapsed to a single scalar confidence or entropy. We study the minimal binary-proposition setting with three epistemic states: true $(\T)$, false $(\F)$, and unresolved $(\U)$. The induced macrostate $\sigma=(p_\T,p_\F,p_\U)$ admits canonical coordinates $(r,\tau)$, where $r=p_\T+p_\F$ is the resolution ratio and $\tau=p_\T/(p_\T+p_\F)$ is the truth ratio on the resolved subset. 
+
+We make four claims. First, the ternary Shannon entropy obeys the exact chain-rule identity $H_3(\sigma)=h(r)+r h(\tau)$; we treat this as a diagnostic identity rather than a novelty claim. Second, the same hierarchical coordinates induce equally clean decompositions for Kullback--Leibler divergence and mutual information, and they diagonalize the Fisher--Rao metric on the ternary simplex. Third, binary confidence scores arise only after a completion policy $\pi_\beta$ that redistributes unresolved mass; this projection is generically lossy, becomes the pignistic transform on the binary frame when $\beta=1/2$, and is decision-blind in a precise sense: states with identical projected entropy can favor different optimal next actions. Fourth, we specify a concrete evidential deep learning benchmark on CIFAR-10/SVHN in which the diagnostic pair $(r,\tau)$ is designed to distinguish entropy-matched in-distribution hard samples from out-of-distribution samples.
+
+The framework is deliberately modest. It is not a replacement for Shannon theory, and it is not a new general uncertainty functional for belief functions. It is a resolution-aware diagnostic layer for explicit-unknown epistemic states.
+\end{abstract}
+
+\section{Introduction}
+
+A single entropy score is often asked to do two incompatible jobs. It is supposed to summarize conflict \emph{within} a resolved set of alternatives, and at the same time summarize how much of the proposition space has not yet been resolved at all. In classical information theory this is not a bug. Shannon entropy is defined on an already specified alphabet and says exactly what it is meant to say on that alphabet \citep{Shannon48,CoverThomas06}. The trouble begins when systems expose an explicit unknown or abstain state but are still diagnosed with a one-dimensional confidence surrogate.
+
+That trouble is no longer niche. In Dempster--Shafer theory and the transferable belief model, mass can be assigned to the full frame rather than to singletons \citep{Dempster67,Shafer76,SmetsKennes94}. In subjective logic, an opinion separates belief, disbelief, uncertainty, and a base rate \citep{Josang16}. In evidential deep learning (EDL), a deterministic network outputs Dirichlet evidence, making vacuity explicit and, in extended variants, making dissonance analyzable as well \citep{SensoyKaplanKandemir18,AguilarRaducanuRadevaVanDeWeijer23}. In open-set recognition and classification with reject option, the system must distinguish between hard in-distribution examples and genuinely unknown inputs \citep{GengHuangChen21,FrancPrusaVoracek23}. In partial-label learning, candidate-label ambiguity is itself a first-class object \citep{FuchsKalinkeBohm24}. Yet many pipelines still report a single entropy or confidence scalar.
+
+This paper studies the smallest setting in which that conflation can be pulled apart cleanly: a binary proposition with three epistemic states, $\{\T,\F,\U\}$. Here $\U$ is \emph{not} a probabilistic mixture of $\T$ and $\F$. It represents unresolvedness. Aggregating over a proposition bank produces a ternary macrostate
+\[
+\sigma=(p_\T,p_\F,p_\U)\in\Delta_2,
+\qquad
+\Delta_2:=\{(p_\T,p_\F,p_\U)\in[0,1]^3: p_\T+p_\F+p_\U=1\}.
+\]
+The natural coordinates are
+\[
+ r:=p_\T+p_\F=1-p_\U,
+ \qquad
+ \tau:=\frac{p_\T}{p_\T+p_\F}
+ \quad (r>0).
+\]
+The variable $r$ measures how much of the proposition space is resolved; $\tau$ measures how the resolved part splits into truth and falsity.
+
+Two clarifications matter immediately. First, we do \emph{not} claim a new general entropy theory. The decomposition
+\[
+H_3(\sigma)=h(r)+r h(\tau)
+\]
+is just Shannon's chain rule applied to the hierarchical variable “resolved or unresolved” followed by “true or false given resolved.” It is useful because it exposes the right diagnostics, not because it defeats seventy years of information theory. Second, we do \emph{not} claim to supersede Dempster--Shafer, subjective logic, or imprecise probability. On a binary frame, our ternary state is a specialization of those frameworks. The point is to isolate a low-dimensional chart in which projection loss, decision blindness, and geometry become unusually transparent.
+
+The paper therefore asks a narrower question than the original note asked. Suppose a system already carries an explicit unknown state. What information measures, projections, and diagnostics remain visible when we separate resolution from resolved content? Our answer is a deliberately small one, with four contributions:
+\begin{enumerate}[leftmargin=1.5em]
+    \item We formalize the ternary macrostate and its canonical coordinates $(r,\tau)$, treating the identity $H_3=h(r)+rh(\tau)$ as a \emph{diagnostic chain-rule identity} rather than a novelty claim.
+    \item We extend the same hierarchical split to Kullback--Leibler divergence and mutual information, and we compute the Fisher--Rao metric in $(r,\tau)$ coordinates.
+    \item We analyze completion projections $\pi_\beta$ that convert explicit unknown mass into binary confidence scores, relate them to the pignistic transform, derive a two-projection identifiability result, and prove a simple decision-blindness theorem.
+    \item We specify a concrete EDL benchmark on CIFAR-10/SVHN that directly tests the claim that standard entropy conflates “conflicting evidence” and “missing evidence.”
+\end{enumerate}
+
+What we do \emph{not} do is equally important. We do not offer a new belief-function total-uncertainty functional. We do not solve the proposition granularity problem in full generality. We do not claim a complete operational semantics for every kind of unknown state. Those limitations are not a side note. They are part of the paper's scope.
+
+\section{Related Work}
+
+\subsection{Belief functions, TBM, subjective logic, and credal semantics}
+
+The closest structural relatives of our ternary state live in Dempster--Shafer theory, the transferable belief model (TBM), subjective logic, and imprecise probability. A binary-frame mass assignment already permits
+\[
+ m(\{\T\})=p_\T,
+ \qquad
+ m(\{\F\})=p_\F,
+ \qquad
+ m(\Theta)=p_\U,
+\]
+with $\Theta=\{\T,\F\}$ \citep{Dempster67,Shafer76}. TBM distinguishes a credal level from a pignistic level and motivates a probability transform for decision making \citep{SmetsKennes94,Smets90}. Subjective logic packages the same binary-frame structure as belief, disbelief, uncertainty, and a base rate, with expectation $b+a u$ \citep{Josang16}. Walley's imprecise-probability framework is more general again, keeping interval or set-valued probabilities explicit instead of forcing a single completion \citep{Walley91}. 
+
+Relative to this literature, our novelty claim is intentionally narrow. We are not introducing ignorance mass, uncertainty mass, or completion-to-probability. We are isolating a two-coordinate chart $(r,\tau)$ for explicit-unknown states and then asking what entropy-like and information-like quantities factor through that chart.
+
+\subsection{Entropy measures for belief functions}
+
+The belief-function literature has already spent a frankly heroic amount of effort trying to quantify uncertainty, dissonance, ambiguity, and nonspecificity. Jousselme \emph{et al.} propose an ambiguity measure tied to the pignistic transformation \citep{JousselmeLiuGrenierBosse06}. Deng entropy extends Shannon-style reasoning to basic probability assignments \citep{Deng16}. Jirou\v{s}ek and Shenoy introduced a decomposable entropy for belief functions and then studied its properties in more detail, explicitly stressing that it measures dissonance rather than total uncertainty \citep{JirousekShenoy18,JirousekShenoy20}. Shenoy later extended that line to mutual information and Kullback--Leibler divergence in the Dempster--Shafer setting \citep{Shenoy24}. 
+
+This matters for positioning. Our chain-rule decomposition is not a competing general belief-function entropy. It is the ordinary Shannon decomposition of a three-state categorical variable obtained after coarse-graining to a binary-proposition explicit-unknown specialization. That is weaker in scope, but clearer in interpretation.
+
+\subsection{Reject option, open-set recognition, partial labels, and evidential neural networks}
+
+Three-way decisions in rough-set and decision-theoretic settings already interpret acceptance, rejection, and deferment as distinct actions \citep{Yao10,Yao12}. In statistical learning, classification with reject option and selective classification study when to abstain rather than predict \citep{FrancPrusaVoracek23}. Open-set recognition adds the requirement that unknown classes may appear at test time \citep{GengHuangChen21}. Partial-label learning studies settings where the correct class is known only to lie within a candidate set \citep{FuchsKalinkeBohm24}. 
+
+EDL is particularly relevant because it makes uncertainty mass explicit at test time using a Dirichlet parameterization grounded in subjective logic \citep{SensoyKaplanKandemir18}. Recent work also uses vacuity and dissonance to separate out-of-distribution detection from misclassification-style ambiguity \citep{AguilarRaducanuRadevaVanDeWeijer23}. Our experimental section sits exactly here: it does not propose a new EDL architecture, only a new diagnostic reduction from EDL outputs to a binary proposition with explicit unknown mass.
+
+\subsection{Information geometry and erasure-based information theory}
+
+On the geometry side, the ambient manifold is not mysterious. It is the ordinary categorical simplex, whose Fisher geometry is classical \citep{Amari16}. For conditional or hierarchical categorical models, the Fisher metric naturally factors across products or conditional polytopes \citep{MontufarRauhAy14}. Our contribution here is not a new manifold but the explicit calculation showing that $(r,\tau)$ is an orthogonal hierarchical chart.
+
+Finally, explicit “missing symbol” ideas also exist in classical information theory. Verd\'u and Weissman's erasure entropy measures information carried by a symbol given its context \citep{VerduWeissman08}. We cite this line not because our ternary state is just an erasure channel in disguise, but to avoid pretending that the mere appearance of an extra symbol is somehow revolutionary. What is specific here is the epistemic meaning of the unknown state and its use as a diagnostic layer in systems that already expose it.
+
+\section{A Ternary Epistemic Model}
+
+\subsection{Microstates and macrostates}
+
+Let $E=\{1,\dots,n\}$ be a finite set of elementary propositions. A microstate is a map
+\[
+ s:E\to\{\T,\F,\U\},
+\]
+where $s(i)=\T$ means proposition $i$ is resolved and true, $s(i)=\F$ means resolved and false, and $s(i)=\U$ means unresolved. The unresolved state is not a latent draw from $\{\T,\F\}$; it is a distinct epistemic condition.
+
+The associated macrostate is the empirical frequency vector
+\[
+ \sigma(s)=(p_\T,p_\F,p_\U),
+ \qquad
+ p_a=\frac{1}{n}\#\{i\in E:s(i)=a\},\quad a\in\{\T,\F,\U\}.
+\]
+The macrostate therefore lives on the simplex $\Delta_2$.
+
+\subsection{Canonical coordinates}
+
+The simplex has two degrees of freedom, but the naive coordinates $(p_\T,p_\F,p_\U)$ hide the interpretation we want. The more useful coordinates are
+\begin{equation}
+ r:=p_\T+p_\F=1-p_\U,
+ \label{eq:r-def}
+\end{equation}
+\begin{equation}
+ \tau:=\frac{p_\T}{p_\T+p_\F}=\frac{p_\T}{r},\qquad r>0.
+ \label{eq:tau-def}
+\end{equation}
+Here $r$ is the \emph{resolution ratio} and $\tau$ is the \emph{truth ratio within the resolved subset}. Inverse coordinates are immediate:
+\begin{equation}
+ p_\T=r\tau,
+ \qquad
+ p_\F=r(1-\tau),
+ \qquad
+ p_\U=1-r.
+ \label{eq:inverse-coords}
+\end{equation}
+
+\begin{proposition}[Canonical parameterization]
+For every interior ternary state with $r>0$, the map $\sigma\leftrightarrow(r,\tau)$ defined by \eqref{eq:r-def}--\eqref{eq:inverse-coords} is bijective. At $r=0$, the simplex collapses to the single unresolved vertex $(0,0,1)$ and $\tau$ is undefined.
+\end{proposition}
+
+\begin{proof}
+The forward map is given by definition and the inverse map by \eqref{eq:inverse-coords}. If $r=0$, then $p_\T=p_\F=0$ and no content coordinate remains.
+\end{proof}
+
+\begin{remark}[Weighted variant and granularity]
+The unweighted macrostate is sensitive to how a proposition bank is partitioned. A weighted variant replaces counts by
+\[
+ p_a^{(w)}=\frac{1}{W}\sum_{i\in E} w_i\,\1\{s(i)=a\},
+ \qquad
+ W=\sum_{i\in E} w_i.
+\]
+Under a measure-preserving refinement that replaces a proposition $i$ by subpropositions whose weights sum to $w_i$ and share the same state label, the weighted macrostate is invariant. We return to this point in Section~\ref{sec:discussion-weighted} because the unweighted theory remains granularity-dependent.
+\end{remark}
+
+\begin{remark}[$(k+1)$-state extension]
+If the resolved content takes $k$ labels instead of two, plus one unresolved state, then the same hierarchical logic survives. One gets a resolution coordinate $r$ and a conditional $k$-simplex coordinate on the resolved subset. The binary-specific formulas in Sections~4--5 specialize from that more general decomposition, but the simplicity of the present paper comes from the binary resolved content.
+\end{remark}
+
+\subsection{Relation to Dempster--Shafer theory and subjective logic}
+
+On a binary frame $\Theta=\{\T,\F\}$, the ternary state is a direct specialization of a belief mass assignment:
+\begin{equation}
+ m(\{\T\})=p_\T,
+ \qquad
+ m(\{\F\})=p_\F,
+ \qquad
+ m(\Theta)=p_\U.
+ \label{eq:ds-map}
+\end{equation}
+Accordingly,
+\[
+\mathrm{Bel}(\{\T\})=p_\T,
+\qquad
+\mathrm{Pl}(\{\T\})=p_\T+p_\U.
+\]
+In subjective logic, the corresponding binomial opinion is
+\[
+(b,d,u,a)=(p_\T,p_\F,p_\U,a),
+\]
+with expectation $b+a u$ \citep{Josang16}. Our completion family in Section~5 simply makes the base-rate parameter explicit as $\beta$.
+
+\section{Entropy Decomposition and Information Measures}
+
+This section contains both the elementary identity that motivated the original note and the less trivial measures that justify keeping the chart. The theme is the same throughout: the ternary variable can be viewed as a hierarchical variable consisting of a resolution gate followed by resolved content.
+
+\subsection{Ternary entropy as a chain-rule identity}
+
+Let
+\[
+\hbin(x):=-x\log_2 x-(1-x)\log_2(1-x)
+\]
+be binary entropy with the usual convention $0\log 0=0$.
+
+\begin{definition}
+For a ternary state $\sigma$, define
+\[
+H_{\mathrm{res}}(\sigma):=\hbin(r),
+\qquad
+H_{\mathrm{cont}}(\sigma):=
+\begin{cases}
+\hbin(\tau), & r>0,\\
+0, & r=0,
+\end{cases}
+\]
+and
+\[
+H_3(\sigma):=-\sum_{a\in\{\T,\F,\U\}} p_a\log_2 p_a.
+\]
+\end{definition}
+
+\begin{theorem}[Chain-rule diagnostic identity]
+\label{thm:entropy-decomposition}
+For every ternary state $\sigma$,
+\begin{equation}
+H_3(\sigma)=H_{\mathrm{res}}(\sigma)+r H_{\mathrm{cont}}(\sigma)=\hbin(r)+r\hbin(\tau).
+\label{eq:entropy-decomposition}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Let $Y\in\{\U,\T,\F\}$ denote the state of a randomly sampled proposition. Define the gate variable
+\[
+R=\1\{Y\in\{\T,\F\}\},
+\]
+and the resolved-content variable $C\in\{0,1\}$ by $C=1$ if $Y=\T$ and $C=0$ if $Y=\F$; when $R=0$, fix $C=0$ deterministically. Then $P(R=1)=r$ and $P(C=1\mid R=1)=\tau$. By Shannon's chain rule,
+\[
+H(Y)=H(R)+H(C\mid R)=\hbin(r)+r\hbin(\tau),
+\]
+because $H(C\mid R=0)=0$. Since $H(Y)=H_3(\sigma)$, the claim follows.
+\end{proof}
+
+\begin{remark}
+Theorem~\ref{thm:entropy-decomposition} is important for diagnosis, not because it is deep. It is an exact hierarchical restatement of an ordinary chain rule on an enriched alphabet.
+\end{remark}
+
+\begin{remark}[Ignorance mass is not ternary entropy]
+At the unresolved vertex $(0,0,1)$ we have $p_\U=1$ but $H_3=0$. This is not a paradox. The ignorance observable is $G(\sigma)=p_\U=1-r$, while $H_3$ measures mixture over the \emph{three labels}. The state “everything is unresolved” is a pure ternary state, hence zero categorical entropy.
+\end{remark}
+
+\subsection{KL divergence in hierarchical coordinates}
+
+The entropy identity has exact analogues for other information measures.
+
+\begin{theorem}[KL decomposition]
+\label{thm:kl-decomposition}
+Let
+\[
+\sigma=(r\tau,\,r(1-\tau),\,1-r),
+\qquad
+\sigma'=(r'\tau',\,r'(1-\tau'),\,1-r')
+\]
+be two ternary states. Whenever $\sigma$ is absolutely continuous with respect to $\sigma'$, the Kullback--Leibler divergence satisfies
+\begin{equation}
+\KL(\sigma\|\sigma')
+=
+\KL_{\mathrm{Bern}}(r\|r')
++
+r\,\KL_{\mathrm{Bern}}(\tau\|\tau').
+\label{eq:kl-decomposition}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Expand the definition:
+\begin{align*}
+\KL(\sigma\|\sigma')
+&=r\tau\log_2\frac{r\tau}{r'\tau'}
++r(1-\tau)\log_2\frac{r(1-\tau)}{r'(1-\tau')}
++(1-r)\log_2\frac{1-r}{1-r'}\\
+&=r\log_2\frac{r}{r'}+(1-r)\log_2\frac{1-r}{1-r'}
++r\Bigl[\tau\log_2\frac{\tau}{\tau'}+(1-\tau)\log_2\frac{1-\tau}{1-\tau'}\Bigr].
+\end{align*}
+The first bracket is $\KL_{\mathrm{Bern}}(r\|r')$ and the second is $\KL_{\mathrm{Bern}}(\tau\|\tau')$.
+\end{proof}
+
+\subsection{Mutual information across the resolution gate}
+
+\begin{theorem}[Mutual-information decomposition]
+\label{thm:mi-decomposition}
+Let $Y\in\{\U,\T,\F\}$ be represented by a gate variable $R\in\{0,1\}$ and a binary resolved-content variable $C\in\{0,1\}$ as above. For any random element $X$ jointly distributed with $Y$,
+\begin{equation}
+\MI(X;Y)=\MI(X;R)+P(R=1)\,\MI(X;C\mid R=1).
+\label{eq:mi-decomposition}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Since $Y$ is a deterministic function of $(R,C)$ and vice versa, $\MI(X;Y)=\MI(X;R,C)$. By the chain rule for mutual information,
+\[
+\MI(X;R,C)=\MI(X;R)+\MI(X;C\mid R).
+\]
+Now decompose the conditional term:
+\[
+\MI(X;C\mid R)=P(R=1)\MI(X;C\mid R=1)+P(R=0)\MI(X;C\mid R=0).
+\]
+When $R=0$, the variable $C$ is deterministic, so $\MI(X;C\mid R=0)=0$.
+\end{proof}
+
+Equation~\eqref{eq:mi-decomposition} is operationally more important than \eqref{eq:entropy-decomposition}. It separates information that changes the resolution status from information that changes only resolved content.
+
+\subsection{Fisher geometry}
+
+\begin{proposition}[Orthogonal Fisher chart]
+\label{prop:fisher}
+On the interior of the ternary simplex, parameterized by $(r,\tau)\in(0,1)\times(0,1)$ through \eqref{eq:inverse-coords}, the Fisher--Rao metric is
+\begin{equation}
+\mathrm{d}s^2
+=
+\frac{\mathrm{d}r^2}{r(1-r)}
++
+\frac{r\,\mathrm{d}\tau^2}{\tau(1-\tau)}.
+\label{eq:fisher-metric}
+\end{equation}
+Hence the resolution and content directions are orthogonal, and the weight of the content direction collapses as $r\to 0$.
+\end{proposition}
+
+\begin{proof}
+For a categorical model, $g_{ij}=\sum_a \frac{\partial_i p_a\partial_j p_a}{p_a}$. Using
+\[
+\partial_r p=(\tau,1-\tau,-1),
+\qquad
+\partial_\tau p=(r,-r,0),
+\]
+one obtains
+\[
+g_{rr}=\frac{1}{r(1-r)},
+\qquad
+g_{r\tau}=0,
+\qquad
+g_{\tau\tau}=\frac{r}{\tau(1-\tau)}.
+\]
+A fuller derivation and the spherical reparameterization are given in Appendix~\ref{app:fisher}.
+\end{proof}
+
+\begin{example}
+Take $\sigma=(0.30,0.20,0.50)$. Then $r=0.50$ and $\tau=0.60$. Equation~\eqref{eq:entropy-decomposition} gives
+\[
+H_3(\sigma)=\hbin(0.5)+0.5\,\hbin(0.6)\approx 1+0.48548=1.48548,
+\]
+which matches direct ternary entropy computation.
+\end{example}
+
+\section{Completion Projection}
+
+The previous section lives entirely on the ternary state space. Standard binary confidence scores appear only after a decision or completion policy tells us what to do with unresolved mass.
+
+\subsection{Completion policies and pignistic connections}
+
+\begin{definition}[Completion projection]
+For $\beta\in[0,1]$, define
+\begin{equation}
+\pi_\beta:\Delta_2\to\Delta_1,
+\qquad
+\pi_\beta(p_\T,p_\F,p_\U)
+=
+\bigl(p_\T+\beta p_\U,\; p_\F+(1-\beta)p_\U\bigr).
+\label{eq:completion-projection}
+\end{equation}
+The projected binary parameter is
+\begin{equation}
+q_\beta(\sigma):=p_\T+\beta p_\U=r\tau+\beta(1-r),
+\label{eq:qbeta}
+\end{equation}
+and the associated projected binary entropy is
+\begin{equation}
+H_\beta(\sigma):=\hbin\bigl(q_\beta(\sigma)\bigr).
+\label{eq:Hbeta}
+\end{equation}
+\end{definition}
+
+\begin{remark}[Why $\beta$ is not canonical]
+The parameter $\beta$ is a completion or base-rate choice. On the binary Dempster--Shafer frame, $\beta=1/2$ gives the pignistic probability of the event $\{\T\}$, namely $\BetP(\T)=p_\T+\tfrac12 p_\U$ \citep{Smets90,SmetsKennes94}. In subjective logic, the same role is played by the base-rate parameter $a$ in the expectation $b+a u$ \citep{Josang16}. Without such a choice, unresolved mass determines an interval of admissible binary completions rather than a single point.
+\end{remark}
+
+\begin{proposition}[Completion interval]
+\label{prop:interval-completion}
+Without fixing $\beta$, the completed binary parameter is only known to lie in
+\begin{equation}
+q\in[p_\T,\,p_\T+p_\U].
+\label{eq:completion-interval}
+\end{equation}
+Consequently, the induced binary entropy lies in
+\begin{equation}
+H(q)\in\bigl[H^{-}(\sigma),H^{+}(\sigma)\bigr],
+\label{eq:entropy-interval}
+\end{equation}
+where
+\[
+H^{-}(\sigma)=\min\{\hbin(p_\T),\hbin(p_\T+p_\U)\},
+\]
+\[
+H^{+}(\sigma)=
+\begin{cases}
+1,& \frac12\in[p_\T,p_\T+p_\U],\\
+\max\{\hbin(p_\T),\hbin(p_\T+p_\U)\},& \text{otherwise.}
+\end{cases}
+\]
+\end{proposition}
+
+\begin{proof}
+Equation~\eqref{eq:qbeta} is affine in $\beta$, so its range over $[0,1]$ is exactly the interval in \eqref{eq:completion-interval}. The entropy bounds follow from the concavity of $\hbin$ and its unique maximum at $1/2$.
+\end{proof}
+
+\begin{remark}[EDL reduction and the special value $\beta=1/K$]
+\label{rem:edl-beta}
+In a $K$-class EDL model, let $\hat y$ be the top-1 prediction, let $b_k$ be the subjective-logic belief masses, and let $u$ be vacuity. If we form the binary proposition “$\hat y$ is correct,” then
+\[
+p_\T=b_{\hat y},
+\qquad
+p_\F=\sum_{j\neq \hat y} b_j,
+\qquad
+p_\U=u.
+\]
+Under the symmetric class base rate, the induced completion weight is $\beta=1/K$, not $1/2$. Then
+\[
+q_{1/K}=b_{\hat y}+\frac{u}{K}=\frac{\alpha_{\hat y}}{\sum_j \alpha_j},
+\]
+which is the usual top-1 predictive confidence. This gives the experiments in Section~6 a direct bridge back to standard confidence scoring.
+\end{remark}
+
+\subsection{Projection loss and recoverability}
+
+\begin{proposition}[Non-injectivity]
+\label{prop:noninjective}
+Fix $\beta\in(0,1)$. The maps $\pi_\beta$, $q_\beta$, and $H_\beta$ are not injective on $\Delta_2$.
+\end{proposition}
+
+\begin{proof}
+The scalar $q_\beta=r\tau+\beta(1-r)$ is a one-dimensional function of the two-dimensional coordinate pair $(r,\tau)$. Generic level sets are therefore one-dimensional. Since $\pi_\beta$ and $H_\beta$ depend on $\sigma$ only through $q_\beta$, they inherit the same non-injectivity.
+\end{proof}
+
+\begin{proposition}[Two projections identify the ternary state]
+\label{prop:two-projections}
+Let $\beta_1\neq \beta_2$ in $[0,1]$ and suppose the two projected parameters $q_{\beta_1}$ and $q_{\beta_2}$ are known. Then the original ternary state is recovered uniquely as
+\begin{equation}
+ p_\U=\frac{q_{\beta_1}-q_{\beta_2}}{\beta_1-\beta_2},
+ \qquad
+ p_\T=q_{\beta_1}-\beta_1 p_\U,
+ \qquad
+ p_\F=1-p_\T-p_\U.
+ \label{eq:two-proj-recovery}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Subtracting $q_{\beta_1}=p_\T+\beta_1 p_\U$ and $q_{\beta_2}=p_\T+\beta_2 p_\U$ gives the expression for $p_\U$. The other two follow by substitution and normalization.
+\end{proof}
+
+\subsection{Decision blindness of single-projection policies}
+
+The real problem with a single projected entropy is not merely dimensional. It is operational. If action values depend differently on unresolved mass and resolved conflict, then a single completion-based scalar can rank states incorrectly.
+
+\begin{definition}[Two-action myopic decision problem]
+Consider the action set $\mathcal{A}=\{a_r,a_c\}$, where $a_r$ is a \emph{resolution probe} and $a_c$ is a \emph{content probe}. Define their one-step expected utilities at state $\sigma=(r,\tau)$ by
+\begin{equation}
+U(a_r\mid \sigma):=1-r,
+\qquad
+U(a_c\mid \sigma):=r\,\hbin(\tau).
+\label{eq:toy-utility}
+\end{equation}
+The Bayes-optimal next action is the maximizer of $U(a\mid\sigma)$ over $\mathcal{A}$.
+\end{definition}
+
+The utility model in \eqref{eq:toy-utility} is intentionally simple. It captures the most basic tension: when unresolved mass is large, there is more to gain from raising $r$; when the system is already highly resolved but still internally conflicted, there is more to gain from acting on content.
+
+\begin{theorem}[Projected entropy can be decision-blind]
+\label{thm:decision-blind}
+Fix any $\beta\in(0,1)$. There exist two distinct ternary states $\sigma_1\neq \sigma_2$ such that
+\begin{equation}
+H_\beta(\sigma_1)=H_\beta(\sigma_2),
+\label{eq:same-Hbeta}
+\end{equation}
+but the Bayes-optimal actions in the two-action problem above are different.
+\end{theorem}
+
+\begin{proof}
+Consider the line of states satisfying $q_\beta(\sigma)=\beta$. From \eqref{eq:qbeta}, any state on that line with $r>0$ obeys $\tau=\beta$, so
+\[
+\sigma(r)=\bigl(r\beta,\,r(1-\beta),\,1-r\bigr),
+\qquad
+H_\beta\bigl(\sigma(r)\bigr)=\hbin(\beta),
+\]
+independent of $r$. Along the same line,
+\[
+U(a_r\mid\sigma(r))=1-r,
+\qquad
+U(a_c\mid\sigma(r))=r\,\hbin(\beta).
+\]
+These two utilities are equal at
+\[
+r^*=\frac{1}{1+\hbin(\beta)}\in(0,1).
+\]
+Choose $r_1<r^*$ and $r_2>r^*$. Then $U(a_r\mid\sigma(r_1))>U(a_c\mid\sigma(r_1))$ while $U(a_r\mid\sigma(r_2))<U(a_c\mid\sigma(r_2))$. The two states therefore have identical projected entropy but opposite Bayes-optimal actions.
+\end{proof}
+
+Theorem~\ref{thm:decision-blind} is the operational core of the paper. It does not say that projected entropy is useless; it says that once explicit unknown mass is present, a single completion-based scalar can be blind to the value of the next action.
+
+\section{Experiments: EDL Protocol on CIFAR-10/SVHN}
+
+\paragraph{Status of this section.}
+This section is written as a submission-ready experimental protocol with figure and table scaffolding. Numerical cells that depend on actual runs are intentionally marked as placeholders rather than fabricated. The design is complete enough to be implemented directly, but the manuscript rewrite does not pretend that unrun experiments have already happened. Human academia is already sufficiently theatrical without fake AUROC values.
+
+\subsection{From EDL outputs to ternary proposition states}
+
+We consider a $K$-class evidential classifier with nonnegative evidence vector $e(x)\in\R_{\ge 0}^K$ and Dirichlet parameters
+\[
+\alpha_k(x)=e_k(x)+1,
+\qquad
+S(x)=\sum_{j=1}^K \alpha_j(x).
+\]
+Under the standard subjective-logic interpretation of EDL \citep{SensoyKaplanKandemir18}, the belief masses and vacuity are
+\[
+b_k(x)=\frac{e_k(x)}{S(x)},
+\qquad
+u(x)=\frac{K}{S(x)},
+\qquad
+\sum_{k=1}^K b_k(x)+\nu(x)=1.
+\]
+Let $\hat y(x)=\arg\max_k \alpha_k(x)$ denote the top-1 predicted class. We reduce the multiclass opinion to the binary proposition
+\[
+\mathcal{P}(x):=\text{``the top-1 prediction }\hat y(x)\text{ is correct.''}
+\]
+Define the ternary state of that proposition by
+\begin{equation}
+ p_\T(x)=b_{\hat y(x)}(x),
+ \qquad
+ p_\F(x)=\sum_{j\neq \hat y(x)} b_j(x),
+ \qquad
+ p_\U(x)=\nu(x).
+ \label{eq:edl-ternary}
+\end{equation}
+Then
+\begin{equation}
+ r(x)=1-\nu(x)=\sum_{j=1}^K b_j(x),
+ \qquad
+ \tau(x)=\frac{b_{\hat y(x)}(x)}{\sum_{j=1}^K b_j(x)}=\frac{e_{\hat y(x)}(x)}{\sum_j e_j(x)}.
+ \label{eq:edl-rtau}
+\end{equation}
+This mapping has the intended semantics: $r$ measures committed evidence, while $\tau$ measures how much of that committed evidence supports the top-1 class.
+
+\subsection{Data, model, and cohort construction}
+
+\paragraph{Training set.}
+Train an evidential ResNet-18 (or a standard small EDL backbone if compute is limited) on the CIFAR-10 training set using the evidential objective of \citet{SensoyKaplanKandemir18}. Use standard data augmentation for CIFAR-10.
+
+\paragraph{Evaluation sets.}
+Use the CIFAR-10 test set as in-distribution data and the SVHN test set as out-of-distribution data. This pairing is standard in OOD evaluation and creates a clean contrast between known classes and visually distinct unknown inputs \citep{GengHuangChen21,SensoyKaplanKandemir18}.
+
+\paragraph{ID-hard cohort.}
+Define the in-distribution hard subset by the smallest top-2 margin of the expected class probabilities
+\[
+\hat p_k(x)=\frac{\alpha_k(x)}{S(x)},
+\qquad
+m(x)=\hat p_{(1)}(x)-\hat p_{(2)}(x).
+\]
+Select the $M$ CIFAR-10 test samples with the smallest margins. This creates an ambiguity-heavy in-distribution cohort without using any of the diagnostic scores under evaluation.
+
+\paragraph{Entropy matching.}
+To test whether a score distinguishes “high conflict among known classes” from “lack of evidence for known classes,” build an entropy-matched benchmark. Let
+\[
+H_{\mathrm{pred}}(x)=-\sum_{k=1}^K \hat p_k(x)\log_2\hat p_k(x)
+\]
+be the ordinary predictive entropy. Partition the union of the ID-hard cohort and an equally sized SVHN cohort into $B$ bins according to $H_{\mathrm{pred}}$. In each bin, subsample equal numbers of ID-hard and OOD examples. By construction, predictive entropy then carries no discriminative advantage on the matched subset.
+
+\subsection{Scores and evaluation metrics}
+
+We compare the following scores.
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Predictive entropy:} $H_{\mathrm{pred}}(x)$.
+    \item \textbf{Projected entropy:} $H_{1/K}(x)=\hbin\bigl(q_{1/K}(x)\bigr)$, where $q_{1/K}(x)=\hat p_{\hat y}(x)$ by Remark~\ref{rem:edl-beta}.
+    \item \textbf{Vacuity:} $\nu(x)$.
+    \item \textbf{Dissonance:} the standard subjective-logic dissonance score computed from the belief masses $b_k(x)$, as used in EDL-style ambiguity analysis \citep{Josang16,AguilarRaducanuRadevaVanDeWeijer23}.
+    \item \textbf{Resolution ratio:} $r(x)=1-\nu(x)$.
+    \item \textbf{Resolution-aware pair:} $(r(x),H_{\mathrm{cont}}(x))$ with $H_{\mathrm{cont}}(x)=\hbin(\tau(x))$. To evaluate the pair as a decision surface, fit a two-feature logistic probe on a held-out split of the matched benchmark. This probe is diagnostic only; it is not a new predictive model.
+\end{enumerate}
+
+We report two metrics.
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{OOD-vs-ID-hard AUROC} on the entropy-matched subset.
+    \item \textbf{Risk--coverage curves} on a mixed CIFAR-10/SVHN stream, where accepting an OOD point counts as an error and abstention thresholds are swept over each score.
+\end{itemize}
+
+\subsection{Main diagnostic figure}
+
+\begin{figure}[t]
+    \centering
+    \fbox{\parbox{0.93\linewidth}{\vspace{0.4em}
+    \textbf{Placeholder for main figure.} Scatter or density plot on the entropy-matched benchmark. Horizontal axis: $r$. Vertical axis: $H_{\mathrm{cont}}=\hbin(\tau)$. Color: CIFAR-10 ID-hard vs SVHN OOD. Expected signature: OOD samples concentrate at low $r$ (high vacuity), while ID-hard samples concentrate at higher $r$ but larger conditional conflict. Standard predictive entropy is matched by construction and therefore cannot separate the groups.\vspace{0.4em}}}
+    \caption{Entropy-matched diagnostic plane. The plot tests the core claim that explicit unknown mass and resolved conflict occupy different directions in the $(r,H_{\mathrm{cont}})$ chart.}
+    \label{fig:main-scatter}
+\end{figure}
+
+Figure~\ref{fig:main-scatter} is the paper's visual center of gravity. If the framework is useful, the two cohorts should separate primarily along the $r$ direction: OOD points should have lower committed mass, while ID-hard points should preserve higher commitment but exhibit higher within-commitment conflict.
+
+\subsection{AUROC and risk--coverage tables}
+
+\begin{table}[t]
+\centering
+\caption{OOD-vs-ID-hard AUROC on the entropy-matched benchmark. The first row is fixed by construction; the remaining entries are to be populated by the accompanying code.}
+\label{tab:auroc}
+\begin{tabular}{lc}
+\toprule
+Score & AUROC \\
+\midrule
+Predictive entropy $H_{\mathrm{pred}}$ & $0.50$ (matched by construction) \\
+Projected entropy $H_{1/K}$ & \placeholder{fill after run} \\
+Vacuity $\nu$ & \placeholder{fill after run} \\
+Dissonance & \placeholder{fill after run} \\
+Resolution ratio $r$ & \placeholder{fill after run} \\
+Pair $(r,H_{\mathrm{cont}})$ + logistic probe & \placeholder{fill after run} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \fbox{\parbox{0.93\linewidth}{\vspace{0.4em}
+    \textbf{Placeholder for risk--coverage curves.} Plot selective risk against coverage for $H_{\mathrm{pred}}$, $H_{1/K}$, vacuity, dissonance, $r$, and the two-feature diagnostic. Expected signature: vacuity- or $r$-based abstention should reject OOD more aggressively, while dissonance should focus on ambiguity-heavy ID points. The combined diagnostic should dominate single-score baselines in the mixed setting.\vspace{0.4em}}}
+    \caption{Risk--coverage evaluation on a mixed CIFAR-10/SVHN stream.}
+    \label{fig:risk-coverage}
+\end{figure}
+
+\subsection{Ablations}
+
+Two ablations matter.
+
+\paragraph{$\beta$-scan.}
+Evaluate $H_\beta$ for $\beta\in\{1/K,1/2,3/4\}$ and optionally on a dense grid. This tests how sensitive projected scores are to the completion prior. The prediction here is simple: if the diagnostic claim is real, no single $\beta$ removes decision blindness uniformly.
+
+\paragraph{Unknown-ratio sweep.}
+Construct mixed evaluation streams with OOD fractions $\eta\in\{0.1,0.3,0.5\}$. This tests whether the advantage of the resolution-aware diagnostic grows when the environment contains more truly unresolved mass.
+
+\begin{table}[t]
+\centering
+\caption{Ablation template for completion parameter and OOD fraction. Numerical cells are placeholders.}
+\label{tab:ablation}
+\begin{tabular}{lccc}
+\toprule
+Setting & $\beta=1/K$ & $\beta=1/2$ & $\beta=3/4$ \\
+\midrule
+Matched AUROC & \placeholder{fill} & \placeholder{fill} & \placeholder{fill} \\
+Selective risk at $80\%$ coverage & \placeholder{fill} & \placeholder{fill} & \placeholder{fill} \\
+\midrule
+$\eta=0.1$ mixed-stream AUROC & \placeholder{fill} & \placeholder{fill} & \placeholder{fill} \\
+$\eta=0.3$ mixed-stream AUROC & \placeholder{fill} & \placeholder{fill} & \placeholder{fill} \\
+$\eta=0.5$ mixed-stream AUROC & \placeholder{fill} & \placeholder{fill} & \placeholder{fill} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{What this experiment is meant to falsify}
+
+The protocol is not designed to prove that $(r,\tau)$ beats every baseline on every dataset. It is designed to test a much sharper claim: after matching ordinary predictive entropy, does a residual separation remain between high-conflict in-distribution samples and low-evidence OOD samples? If the answer is no, then the framework is mostly pedagogical. If the answer is yes, then explicit-unknown diagnostics do real work that a single entropy scalar cannot do.
+
+\section{Discussion}
+
+\subsection{What exactly is the relation to DS, TBM, and subjective logic?}
+
+The relation is not subtle. At the representational level, the ternary macrostate is a binary-frame Dempster--Shafer specialization and a binomial subjective-logic opinion without the base-rate parameter. Equation~\eqref{eq:ds-map} is the entire story. The completion family $q_\beta=p_\T+\beta p_\U$ is the same family of decision-level completions that appears as the pignistic transform in TBM and as the expectation $b+a u$ in subjective logic \citep{SmetsKennes94,Smets90,Josang16}. 
+
+What is different here is not the existence of uncertainty mass. It is the particular diagnostic chart $(r,\tau)$ and the resulting split between three roles:
+\begin{enumerate}[leftmargin=1.5em]
+    \item an \emph{explicit-unknown state model} at the macrostate level,
+    \item an \emph{ordinary categorical information layer} on that macrostate,
+    \item a \emph{completion layer} that turns explicit unknown mass into binary confidence only after an extra policy choice.
+\end{enumerate}
+In other words, the paper's claims are about diagnostics and projection loss, not about priority over DS or subjective logic. Trying to outflank that literature head-on would be academic performance art, and not even especially good art.
+
+\subsection{Why a single $\U$ is not enough}
+\label{sec:single-u}
+
+The present model uses a single unresolved state, but real systems often contain several kinds of unresolvedness. Open-set recognition distinguishes novelty from ordinary ambiguity \citep{GengHuangChen21}. Reject-option learning distinguishes abstention motivated by expected error from abstention motivated by true unknowns \citep{FrancPrusaVoracek23}. EDL work frequently treats vacuity and dissonance as distinct uncertainty signatures \citep{AguilarRaducanuRadevaVanDeWeijer23}. Partial-label learning introduces candidate-set ambiguity rather than absence of evidence \citep{FuchsKalinkeBohm24}. 
+
+The current ternary model compresses all of these into one $\U$. That is useful for the binary-proposition geometry but insufficient for a mature application theory. A natural next step is therefore a multi-$\U$ or $(k+m)$-state model in which ambiguity, novelty, missingness, and source conflict are represented separately.
+
+\subsection{Granularity dependence and weighted proposition spaces}
+\label{sec:discussion-weighted}
+
+The macrostate depends on how the proposition bank $E$ is constructed. Splitting one unresolved proposition into ten unresolved subpropositions changes $p_\U$ in the unweighted model even if the semantic situation has barely changed. This is not a corner case. It is a real modeling risk.
+
+The weighted variant in Section~3 partially repairs the problem by replacing counts with a measure over propositions. Under a measure-preserving refinement, the weighted macrostate is invariant. We regard this as the correct route for applications involving hierarchical taxonomies, composite labels, or knowledge graphs. The current paper stops one step short of developing the full measure-theoretic version because the point here is to pin down the binary-proposition diagnostic layer first.
+
+\subsection{Why $\beta$ remains a free parameter}
+
+Another deliberate limitation is that $\beta$ is not canonical. On the binary frame, $\beta=1/2$ is the pignistic choice; on the EDL top-1 correctness proposition, $\beta=1/K$ is the symmetric class-base-rate choice. Outside those special cases, $\beta$ is a decision parameter or prior-completion parameter. The interval result in Proposition~\ref{prop:interval-completion} is therefore not a nuisance. It is the honest statement of what the ternary state determines before a decision policy is fixed.
+
+\section{Conclusion and Limitations}
+
+This paper reframes the original note as a theory of \emph{resolution-aware diagnostics} for explicit-unknown states. The right way to read the main identity
+\[
+H_3(\sigma)=\hbin(r)+r\hbin(\tau)
+\]
+is not as a replacement for Shannon entropy, but as a reminder that once unresolvedness is explicit, a single scalar can hide which part of uncertainty comes from unresolvedness and which part comes from conflict within the resolved subset.
+
+That modest reframing pays off in three concrete ways. First, KL divergence and mutual information inherit the same hierarchical decomposition. Second, the Fisher geometry becomes diagonal in $(r,\tau)$, making the gate/content structure geometrically visible. Third, completion projections become explicit policy choices rather than invisible defaults, which in turn makes projection loss and decision blindness easy to state and prove.
+
+The limitations are equally clear.
+\begin{itemize}[leftmargin=1.5em]
+    \item The model is a binary-frame specialization, not a new general belief-function uncertainty theory.
+    \item A single unresolved state $\U$ collapses ambiguity, novelty, missingness, and conflict.
+    \item The unweighted proposition bank is granularity-dependent.
+    \item The completion parameter $\beta$ is not canonical outside special decision settings.
+    \item The experimental section in this rewrite is a complete protocol with placeholders, not a dishonest pile of invented numbers.
+\end{itemize}
+
+Those are not cosmetic caveats. They are the paper's actual boundary. Inside that boundary, however, the framework is useful: it provides a compact chart, explicit projection semantics, and a clean test for when standard entropy is blind to the difference between missing evidence and conflicting evidence.
+
+\appendix
+
+\section{Compressed Coupling Dynamics}
+\label{app:coupling}
+
+This appendix retains the one part of the original note that could still grow into a separate operational theory: proposition-level transfer dynamics. It is not central to the present diagnostic paper, which is why it lives here.
+
+Let systems $A$ and $B$ have proposition banks $E_A$ and $E_B$ with microstates
+\[
+s_A:E_A\to\{\T,\F,\U\},
+\qquad
+s_B:E_B\to\{\T,\F,\U\}.
+\]
+A compatibility graph is a relation $M\subseteq E_A\times E_B$. An edge $(i,j)\in M$ means that proposition $i$ in $A$ can, in principle, bear on proposition $j$ in $B$.
+
+A one-step coupling is a Markov kernel
+\[
+K\bigl((s_A',s_B')\mid(s_A,s_B)\bigr).
+\]
+Define the receiver-side resolution ratio by
+\[
+r_B(s_B)=\frac{1}{|E_B|}\#\{j\in E_B:s_B(j)\neq \U\}.
+\]
+The one-step expected resolution gain on $B$ is
+\[
+\Delta_R^B(K;s_A,s_B)=\E_K\bigl[r_B(s_B')\bigr]-r_B(s_B).
+\]
+The resolvable frontier of $B$ relative to $A$ is
+\[
+\Gamma_M(s_A,s_B)
+=
+\{j\in E_B:s_B(j)=\U,\ \exists i\in E_A\text{ with }(i,j)\in M\text{ and }s_A(i)\neq \U\}.
+\]
+
+\begin{definition}[Monotone one-step coupling on $B$]
+A kernel $K$ is monotone one-step on $B$ if, almost surely,
+\begin{enumerate}[leftmargin=1.5em]
+    \item resolved propositions in $B$ do not revert to $\U$ in one step, and
+    \item every newly resolved proposition in $B$ belongs to $\Gamma_M(s_A,s_B)$.
+\end{enumerate}
+\end{definition}
+
+\begin{theorem}[Structural one-step resolution bound]
+If $K$ is monotone one-step on $B$, then
+\[
+\Delta_R^B(K;s_A,s_B)
+\le
+\frac{|\Gamma_M(s_A,s_B)|}{|E_B|}.
+\]
+\end{theorem}
+
+\begin{proof}
+Under monotonicity, positive change in $r_B$ comes only from unresolved propositions that become resolved. By admissibility, each such proposition lies in $\Gamma_M(s_A,s_B)$. Therefore the realized number of newly resolved propositions is at most $|\Gamma_M(s_A,s_B)|$, and division by $|E_B|$ yields the bound.
+\end{proof}
+
+This theorem is not strong enough to carry the main text. It becomes interesting only after one specifies query policies, noise models, and multi-step objectives. In the present paper it is kept as a direction, not as a central claim.
+
+\section{Fisher Geometry Details}
+\label{app:fisher}
+
+Let
+\[
+p_1=r\tau,
+\qquad
+p_2=r(1-\tau),
+\qquad
+p_3=1-r.
+\]
+The Fisher--Rao metric on a categorical family is
+\[
+g_{ij}=\sum_{a=1}^3 \frac{\partial_i p_a\,\partial_j p_a}{p_a}.
+\]
+Using
+\[
+\partial_r p=(\tau,1-\tau,-1),
+\qquad
+\partial_\tau p=(r,-r,0),
+\]
+we obtain
+\begin{align*}
+g_{rr}
+&=\frac{\tau^2}{r\tau}+\frac{(1-\tau)^2}{r(1-\tau)}+\frac{1}{1-r}
+=\frac{1}{r}+\frac{1}{1-r}
+=\frac{1}{r(1-r)},\\
+g_{r\tau}
+&=\frac{\tau\,r}{r\tau}+\frac{(1-\tau)(-r)}{r(1-\tau)}+0
+=1-1=0,\\
+g_{\tau\tau}
+&=\frac{r^2}{r\tau}+\frac{r^2}{r(1-\tau)}
+=\frac{r}{\tau(1-\tau)}.
+\end{align*}
+Hence
+\[
+\mathrm{d}s^2=\frac{\mathrm{d}r^2}{r(1-r)}+\frac{r\,\mathrm{d}\tau^2}{\tau(1-\tau)}.
+\]
+Now set
+\[
+r=\sin^2\theta,
+\qquad
+\tau=\sin^2\phi.
+\]
+Then
+\[
+\mathrm{d}r=2\sin\theta\cos\theta\,\mathrm{d}\theta,
+\qquad
+\mathrm{d}\tau=2\sin\phi\cos\phi\,\mathrm{d}\phi,
+\]
+and substitution yields
+\[
+\mathrm{d}s^2=4\bigl(\mathrm{d}\theta^2+\sin^2\theta\,\mathrm{d}\phi^2\bigr).
+\]
+Thus the interior chart is isometric to an octant of the radius-$2$ sphere. The only nontrivial feature for our purposes is the degeneration of the content fiber as $r\to 0$.
+
+\section{Notation Table}
+\label{app:notation}
+
+\begin{table}[h]
+\centering
+\caption{Core notation.}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.18\linewidth}p{0.72\linewidth}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$E$ & finite set of elementary propositions \\
+$s$ & microstate $s:E\to\{\T,\F,\U\}$ \\
+$\sigma$ & ternary macrostate $(p_\T,p_\F,p_\U)$ \\
+$r$ & resolution ratio $p_\T+p_\F=1-p_\U$ \\
+$\tau$ & truth ratio within the resolved subset, $p_\T/(p_\T+p_\F)$ \\
+$H_3$ & Shannon entropy on the ternary alphabet $\{\T,\F,\U\}$ \\
+$H_{\mathrm{res}}$ & binary entropy $\hbin(r)$ of the resolution gate \\
+$H_{\mathrm{cont}}$ & binary entropy $\hbin(\tau)$ on resolved content \\
+$\pi_\beta$ & completion projection with parameter $\beta$ \\
+$q_\beta$ & projected binary parameter $p_\T+\beta p_\U$ \\
+$H_\beta$ & projected binary entropy $\hbin(q_\beta)$ \\
+$\BetP$ & pignistic probability transform \\
+$e_k,\alpha_k$ & EDL evidence and Dirichlet parameters for class $k$ \\
+$b_k,\nu$ & EDL belief masses and vacuity \\
+$M$ & compatibility graph between proposition banks \\
+$K$ & proposition-level coupling kernel \\
+$\Gamma_M$ & resolvable frontier induced by a sender and graph $M$ \\
+$\Delta_R^B$ & expected one-step resolution gain of receiver $B$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{thebibliography}{99}
+
+\bibitem[Aguilar et~al.(2023)Aguilar, Raducanu, Radeva, and Van de Weijer]{AguilarRaducanuRadevaVanDeWeijer23}
+Eduardo Aguilar, Bogdan Raducanu, Petia Radeva, and Joost Van de Weijer.
+\newblock Continual evidential deep learning for out-of-distribution detection.
+\newblock In \emph{Proceedings of the IEEE/CVF International Conference on Computer Vision Workshops}, pages 3444--3454, 2023.
+
+\bibitem[Amari(2016)]{Amari16}
+Shun-ichi Amari.
+\newblock \emph{Information Geometry and Its Applications}.
+\newblock Springer, Tokyo, 2016.
+
+\bibitem[Cover and Thomas(2006)]{CoverThomas06}
+Thomas~M. Cover and Joy~A. Thomas.
+\newblock \emph{Elements of Information Theory}.
+\newblock Wiley, 2nd edition, 2006.
+
+\bibitem[Dempster(1967)]{Dempster67}
+Arthur~P. Dempster.
+\newblock Upper and lower probabilities induced by a multivalued mapping.
+\newblock \emph{Annals of Mathematical Statistics}, 38(2):325--339, 1967.
+
+\bibitem[Deng(2016)]{Deng16}
+Yong Deng.
+\newblock Deng entropy.
+\newblock \emph{Chaos, Solitons \& Fractals}, 91:549--553, 2016.
+
+\bibitem[Franc et~al.(2023)Franc, Prusa, and Vor\'a\v{c}ek]{FrancPrusaVoracek23}
+Vojt\v{e}ch Franc, Daniel Prusa, and V\'aclav Vor\'a\v{c}ek.
+\newblock Optimal strategies for reject option classifiers.
+\newblock \emph{Journal of Machine Learning Research}, 24(11):1--49, 2023.
+
+\bibitem[Fuchs et~al.(2024)Fuchs, Kalinke, and B\"ohm]{FuchsKalinkeBohm24}
+Tobias Fuchs, Florian Kalinke, and Klemens B\"ohm.
+\newblock Uncertainty-aware partial-label learning.
+\newblock \emph{CoRR}, abs/2402.00592, 2024.
+
+\bibitem[Geng et~al.(2021)Geng, Huang, and Chen]{GengHuangChen21}
+Chuanxing Geng, Sheng-Jun Huang, and Songcan Chen.
+\newblock Recent advances in open set recognition: A survey.
+\newblock \emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 43(10):3614--3631, 2021.
+
+\bibitem[Jirou\v{s}ek and Shenoy(2018)]{JirousekShenoy18}
+Radim Jirou\v{s}ek and Prakash~P. Shenoy.
+\newblock A decomposable entropy of belief functions in the {D}empster--{S}hafer theory.
+\newblock In \emph{Belief Functions: Theory and Applications}, pages 193--203. Springer, 2018.
+
+\bibitem[Jirou\v{s}ek and Shenoy(2020)]{JirousekShenoy20}
+Radim Jirou\v{s}ek and Prakash~P. Shenoy.
+\newblock On properties of a new decomposable entropy of {D}empster--{S}hafer belief functions.
+\newblock \emph{International Journal of Approximate Reasoning}, 119:260--279, 2020.
+
+\bibitem[J\o sang(2016)]{Josang16}
+Audun J\o sang.
+\newblock \emph{Subjective Logic: A Formalism for Reasoning Under Uncertainty}.
+\newblock Springer, Cham, 2016.
+
+\bibitem[Jousselme et~al.(2006)Jousselme, Liu, Grenier, and Boss\'e]{JousselmeLiuGrenierBosse06}
+Anne-Laure Jousselme, Changshu Liu, Daniel Grenier, and \'{E}loi Boss\'e.
+\newblock Measuring ambiguity in the evidence theory.
+\newblock \emph{IEEE Transactions on Systems, Man, and Cybernetics, Part A}, 36(5):890--903, 2006.
+
+\bibitem[Mont\'ufar et~al.(2014)Mont\'ufar, Rauh, and Ay]{MontufarRauhAy14}
+Guido~F. Mont\'ufar, Johannes Rauh, and Nihat Ay.
+\newblock On the {F}isher metric of conditional probability polytopes.
+\newblock \emph{Entropy}, 16(6):3207--3233, 2014.
+
+\bibitem[Shannon(1948)]{Shannon48}
+Claude~E. Shannon.
+\newblock A mathematical theory of communication.
+\newblock \emph{Bell System Technical Journal}, 27(3):379--423, 623--656, 1948.
+
+\bibitem[Sensoy et~al.(2018)Sensoy, Kaplan, and Kandemir]{SensoyKaplanKandemir18}
+Murat Sensoy, Lance~M. Kaplan, and Melih Kandemir.
+\newblock Evidential deep learning to quantify classification uncertainty.
+\newblock In \emph{Advances in Neural Information Processing Systems}, pages 3179--3189, 2018.
+
+\bibitem[Shafer(1976)]{Shafer76}
+Glenn Shafer.
+\newblock \emph{A Mathematical Theory of Evidence}.
+\newblock Princeton University Press, Princeton, NJ, 1976.
+
+\bibitem[Shenoy(2024)]{Shenoy24}
+Prakash~P. Shenoy.
+\newblock Mutual information and {K}ullback--{L}eibler divergence in the {D}empster--{S}hafer theory.
+\newblock In \emph{Belief Functions: Theory and Applications}, pages 225--233. Springer, 2024.
+
+\bibitem[Smets(1990)]{Smets90}
+Philippe Smets.
+\newblock Constructing the pignistic probability function in a context of uncertainty.
+\newblock In \emph{Uncertainty in Artificial Intelligence 5}, pages 29--40. North-Holland, 1990.
+
+\bibitem[Smets and Kennes(1994)]{SmetsKennes94}
+Philippe Smets and Robert Kennes.
+\newblock The transferable belief model.
+\newblock \emph{Artificial Intelligence}, 66(2):191--234, 1994.
+
+\bibitem[Verd\'u and Weissman(2008)]{VerduWeissman08}
+Sergio Verd\'u and Tsachy Weissman.
+\newblock The information lost in erasures.
+\newblock \emph{IEEE Transactions on Information Theory}, 54(11):5030--5058, 2008.
+
+\bibitem[Walley(1991)]{Walley91}
+Peter Walley.
+\newblock \emph{Statistical Reasoning with Imprecise Probabilities}.
+\newblock Chapman and Hall, London, 1991.
+
+\bibitem[Yao(2010)]{Yao10}
+Yiyu Yao.
+\newblock Three-way decisions with probabilistic rough sets.
+\newblock \emph{Information Sciences}, 180(3):341--353, 2010.
+
+\bibitem[Yao(2012)]{Yao12}
+Yiyu Yao.
+\newblock An outline of a theory of three-way decisions.
+\newblock In \emph{Rough Sets and Current Trends in Computing}, pages 1--17. Springer, 2012.
+
+\end{thebibliography}
+
+\end{document}
